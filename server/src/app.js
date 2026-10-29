@@ -5,6 +5,7 @@ import { Router, readJson, sendJson, serveStatic } from './http.js';
 import { HttpError } from './util.js';
 import * as svc from './services.js';
 import { getConversation, handleChat } from './chat/service.js';
+import { deleteLogo, saveLogo } from './logos.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -15,13 +16,22 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
  * @param {object} [opts.notifier]
  * @param {string} [opts.panelToken]  si se define, la API del panel exige "Authorization: Bearer <token>"
  */
-export function createApp({ db, notifier, panelToken, webDist = join(ROOT, 'web', 'dist'), widgetDir = join(ROOT, 'widget') }) {
+export function createApp({
+  db,
+  notifier,
+  panelToken,
+  webDist = join(ROOT, 'web', 'dist'),
+  widgetDir = join(ROOT, 'widget'),
+  logosDir = join(process.cwd(), 'data', 'logos'),
+}) {
   const ctx = { notifier };
   const api = new Router();
 
   // ---------- público: lo usa el widget desde la web del hotel
   api.get('/api/health', () => ({ ok: true }));
+  api.get('/api/public/hotels', () => svc.listPublicHotels(db));
   api.get('/api/public/hotels/:id', ({ params }) => svc.publicHotelConfig(db, params.id));
+  api.get('/api/public/hotels/:id/site', ({ params }) => svc.publicHotelSite(db, params.id));
   api.post('/api/chat', ({ body }) => handleChat(db, body, ctx));
   api.get('/api/public/hotels/:id/conversations/:cid', ({ params }) => getConversation(db, params.id, params.cid));
 
@@ -32,6 +42,8 @@ export function createApp({ db, notifier, panelToken, webDist = join(ROOT, 'web'
   api.post('/api/hotels', ({ body }) => [201, svc.createHotel(db, body)]);
   api.get('/api/hotels/:id', ({ params }) => svc.getHotel(db, params.id));
   api.put('/api/hotels/:id', ({ params, body }) => svc.updateHotel(db, params.id, body));
+  api.post('/api/hotels/:id/logo', ({ params, body }) => saveLogo(db, logosDir, params.id, body.data));
+  api.delete('/api/hotels/:id/logo', ({ params }) => deleteLogo(db, logosDir, params.id));
 
   api.get('/api/hotels/:id/extras', ({ params }) => svc.listExtras(db, params.id));
   api.post('/api/hotels/:id/extras', ({ params, body }) => [201, svc.createExtra(db, params.id, body)]);
@@ -77,7 +89,7 @@ export function createApp({ db, notifier, panelToken, webDist = join(ROOT, 'web'
         const found = api.match(req.method, path);
         if (!found) throw new HttpError(404, 'Ruta no encontrada');
         if (found.methodNotAllowed) throw new HttpError(405, 'Método no permitido');
-        const body = await readJson(req);
+        const body = await readJson(req, path.endsWith('/logo') ? 2 * 1024 * 1024 : undefined);
         const query = Object.fromEntries(url.searchParams);
         const out = await found.handler({ params: found.params, query, body, req });
         if (Array.isArray(out) && typeof out[0] === 'number') return sendJson(res, out[0], out[1]);
@@ -95,6 +107,12 @@ export function createApp({ db, notifier, panelToken, webDist = join(ROOT, 'web'
     if (path === '/widget.js') {
       res.setHeader('access-control-allow-origin', '*');
       if (serveStatic(res, widgetDir, 'widget.js', { cache: 'public, max-age=300' })) return;
+    }
+    // Logos subidos desde Knowledge (se cachean: el nombre cambia con cada subida)
+    if (path.startsWith('/logos/')) {
+      res.setHeader('access-control-allow-origin', '*');
+      res.setHeader('x-content-type-options', 'nosniff');
+      if (serveStatic(res, logosDir, path.slice('/logos/'.length), { cache: 'public, max-age=31536000, immutable' })) return;
     }
     if (path === '/demo' || path === '/demo.html') {
       if (serveStatic(res, widgetDir, 'demo.html')) return;

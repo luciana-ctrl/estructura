@@ -1,12 +1,16 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import { mkdtempSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { openDb } from '../src/db.js';
 import { createApp } from '../src/app.js';
 import { seedIfEmpty } from '../src/seed.js';
 import { addDays, todayIn, weekday } from '../src/util.js';
 
 let server;
+const logosDir = join(mkdtempSync(join(tmpdir(), 'logos-')), 'logos');
 let base;
 const events = [];
 const notifier = {
@@ -27,7 +31,7 @@ async function call(method, path, body, headers = {}) {
 before(async () => {
   const db = openDb(':memory:');
   seedIfEmpty(db, { withRequests: false });
-  server = createServer(createApp({ db, notifier, panelToken: 'secreto' }));
+  server = createServer(createApp({ db, notifier, panelToken: 'secreto', logosDir }));
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}`;
 });
@@ -42,7 +46,7 @@ test('la API del panel exige token; el widget no', async () => {
   assert.equal((await call('GET', '/api/hotels', undefined, auth)).status, 200);
   const pub = await call('GET', '/api/public/hotels/hotel-mirador');
   assert.equal(pub.status, 200);
-  assert.deepEqual(Object.keys(pub.body).sort(), ['id', 'name', 'primary_color', 'welcome_message']);
+  assert.deepEqual(Object.keys(pub.body).sort(), ['id', 'logo_url', 'name', 'primary_color', 'welcome_message']);
 });
 
 test('conversación por el widget crea una solicitud pendiente asignada a los encargados de ese día', async () => {
@@ -153,4 +157,64 @@ test('encargados: valida días y fechas', async () => {
   const s = await call('POST', '/api/hotels/hotel-mirador/staff', { name: 'Temporada alta', weekdays: [1], date_from: '2030-12-01', date_to: '2031-02-28' }, auth);
   assert.equal(s.status, 201);
   assert.deepEqual(s.body.weekdays, [1]);
+});
+
+test('chat desde el panel: crea una solicitud manual y no cuenta en el embudo del chat web', async () => {
+  const before = (await call('GET', '/api/analytics?hotelId=posada-del-rio', undefined, auth)).body;
+  const first = await call('POST', '/api/chat', { hotelId: 'posada-del-rio', channel: 'panel' });
+  const conversationId = first.body.conversationId;
+  const say = async (message) => (await call('POST', '/api/chat', { hotelId: 'posada-del-rio', conversationId, message, channel: 'panel' })).body;
+  let out;
+  for (const m of ['2030-06-01', '2 noches', '3', 'Cabaña', 'Huésped por teléfono', 'tel@example.com', 'Omitir', 'no', 'No, nada más', 'Enviar solicitud']) out = await say(m);
+  assert.ok(out.requestId);
+  const r = (await call('GET', `/api/requests/${out.requestId}`, undefined, auth)).body;
+  assert.equal(r.source, 'manual');
+  assert.equal(r.device, null);
+  const after = (await call('GET', '/api/analytics?hotelId=posada-del-rio', undefined, auth)).body;
+  assert.equal(after.funnel.conversations, before.funnel.conversations);
+  assert.equal(after.totals.requests, before.totals.requests + 1);
+});
+
+test('una base creada con la versión anterior se actualiza sola', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const { mkdtempSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const file = join(mkdtempSync(join(tmpdir(), 'reservas-')), 'old.db');
+  const old = new DatabaseSync(file);
+  old.exec("CREATE TABLE conversations (id TEXT PRIMARY KEY, hotel_id TEXT NOT NULL, device TEXT, state TEXT NOT NULL DEFAULT '{}', messages TEXT NOT NULL DEFAULT '[]', request_id INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)");
+  old.close();
+  const db = openDb(file);
+  const cols = db.prepare('PRAGMA table_info(conversations)').all().map((c) => c.name);
+  assert.ok(cols.includes('channel'));
+});
+
+test('logo: subir, servir, reemplazar y quitar', async () => {
+  // PNG de 1x1 píxel
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+  const up = await call('POST', '/api/hotels/hotel-mirador/logo', { data: png }, auth);
+  assert.equal(up.status, 200);
+  assert.match(up.body.logo_url, /^\/logos\/hotel-mirador-\d+\.png$/);
+  const img = await fetch(base + up.body.logo_url);
+  assert.equal(img.status, 200);
+  assert.equal(img.headers.get('content-type'), 'image/png');
+  assert.equal((await call('GET', '/api/public/hotels/hotel-mirador')).body.logo_url, up.body.logo_url);
+
+  // un archivo que dice ser PNG pero no lo es → rechazado
+  const fake = 'data:image/png;base64,' + Buffer.from('<svg onload=alert(1)>').toString('base64');
+  assert.equal((await call('POST', '/api/hotels/hotel-mirador/logo', { data: fake }, auth)).status, 400);
+
+  // reemplazar borra el archivo anterior
+  await new Promise((r) => setTimeout(r, 5));
+  const up2 = await call('POST', '/api/hotels/hotel-mirador/logo', { data: png }, auth);
+  assert.ok(!existsSync(join(logosDir, up.body.logo_url.split('/').pop())));
+
+  // también se puede usar una dirección externa
+  const ext = await call('PUT', '/api/hotels/hotel-mirador', { logo_url: 'https://cdn.example.com/logo.png' }, auth);
+  assert.equal(ext.body.logo_url, 'https://cdn.example.com/logo.png');
+  assert.equal((await call('PUT', '/api/hotels/hotel-mirador', { logo_url: 'javascript:alert(1)' }, auth)).status, 400);
+
+  const del = await call('DELETE', '/api/hotels/hotel-mirador/logo', undefined, auth);
+  assert.equal(del.body.logo_url, null);
+  assert.ok(up2.body.logo_url);
 });

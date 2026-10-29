@@ -63,6 +63,13 @@ function cleanHotelInput(body, partial) {
     out.assign_by = body.assign_by;
   }
   if (body.welcome_message !== undefined) out.welcome_message = body.welcome_message ? String(body.welcome_message) : null;
+  if (body.logo_url !== undefined) {
+    const url = body.logo_url ? String(body.logo_url).trim() : '';
+    if (url && !/^https?:\/\/\S+$/i.test(url) && !/^\/logos\/[\w.-]+$/.test(url)) {
+      throw new HttpError(400, 'El logo debe ser una dirección que empiece por https://');
+    }
+    out.logo_url = url || null;
+  }
   if (body.primary_color !== undefined) {
     if (!/^#[0-9a-fA-F]{6}$/.test(body.primary_color)) throw new HttpError(400, 'Color inválido, usa #RRGGBB');
     out.primary_color = body.primary_color;
@@ -75,11 +82,11 @@ export function createHotel(db, body) {
   const id = body.id ? slugify(body.id) : slugify(data.name);
   if (!id) throw new HttpError(400, 'No se pudo generar el id del hotel');
   if (db.prepare('SELECT 1 FROM hotels WHERE id = ?').get(id)) throw new HttpError(409, `Ya existe un hotel con id "${id}"`);
-  const row = { timezone: 'America/Argentina/Buenos_Aires', room_types: '[]', assign_by: 'check_in', primary_color: '#1f6f5c', welcome_message: null, ...data };
+  const row = { timezone: 'America/Argentina/Buenos_Aires', room_types: '[]', assign_by: 'check_in', primary_color: '#2f6bff', welcome_message: null, logo_url: null, ...data };
   db.prepare(
-    `INSERT INTO hotels (id, name, timezone, room_types, assign_by, welcome_message, primary_color, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, row.name, row.timezone, row.room_types, row.assign_by, row.welcome_message, row.primary_color, nowIso());
+    `INSERT INTO hotels (id, name, timezone, room_types, assign_by, welcome_message, primary_color, logo_url, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, row.name, row.timezone, row.room_types, row.assign_by, row.welcome_message, row.primary_color, row.logo_url, nowIso());
   return getHotel(db, id);
 }
 
@@ -96,7 +103,20 @@ export function updateHotel(db, id, body) {
 /** Lo que el widget necesita saber del hotel (sin datos internos) */
 export function publicHotelConfig(db, id) {
   const h = getHotel(db, id);
-  return { id: h.id, name: h.name, primary_color: h.primary_color, welcome_message: h.welcome_message };
+  return { id: h.id, name: h.name, primary_color: h.primary_color, welcome_message: h.welcome_message, logo_url: h.logo_url };
+}
+
+/** Datos públicos para la web de demo: habitaciones y extras activos (lo mismo que el chat ofrece) */
+export function publicHotelSite(db, id) {
+  const h = getHotel(db, id);
+  const extras = db
+    .prepare('SELECT name, price, condition_text FROM extras WHERE hotel_id = ? AND active = 1 ORDER BY sort, id')
+    .all(h.id);
+  return { ...publicHotelConfig(db, id), room_types: h.room_types, extras };
+}
+
+export function listPublicHotels(db) {
+  return db.prepare('SELECT id, name FROM hotels ORDER BY name').all();
 }
 
 // ---------------------------------------------------------------- extras (Knowledge)
@@ -414,7 +434,7 @@ export function analytics(db, q = {}) {
     .filter((r) => !q.source || r.source === q.source);
 
   const conversations = db
-    .prepare(`SELECT hotel_id, device, created_at, request_id FROM conversations ${q.hotelId ? 'WHERE hotel_id = ?' : ''}`)
+    .prepare(`SELECT hotel_id, device, created_at, request_id FROM conversations WHERE channel = 'web' ${q.hotelId ? 'AND hotel_id = ?' : ''}`)
     .all(...(q.hotelId ? [q.hotelId] : []))
     .filter((c) => inRange(localDate(new Date(c.created_at), tzOf.get(c.hotel_id) ?? 'UTC')))
     .filter((c) => !q.device || c.device === q.device);

@@ -3,45 +3,317 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Demo del widget de reservas</title>
+  <title>Demo · Reservas por chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: #2b2b2b; background: #faf8f4; }
-    header { padding: 72px 24px 56px; text-align: center; background: linear-gradient(160deg, #e9e2d4, #d8cdb7); }
-    h1 { margin: 0 0 8px; font-size: clamp(28px, 6vw, 46px); font-weight: 500; }
-    p.lead { margin: 0; font-size: 18px; color: #5a5245; }
-    main { max-width: 760px; margin: 0 auto; padding: 32px 24px 160px; line-height: 1.65; font-size: 17px; }
-    .note { margin: 28px 0; padding: 14px 16px; border-left: 3px solid #b39c74; background: #fff; font-family: system-ui, sans-serif; font-size: 14px; }
-    code { font-size: 13px; background: #f1ede5; padding: 2px 5px; border-radius: 4px; word-break: break-all; }
-    .hotels a { margin-right: 12px; }
+    :root {
+      --ink: #1d1b19;
+      --muted: #5f5a53;
+      --cream: #f6f2ec;
+      --paper: #faf8f4;
+      --line: #ddd5c8;
+      --gold: #b8862f;
+      --night: #1d1c1a;
+      --serif: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
+      --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; scroll-padding-top: 120px; }
+    body { margin: 0; font-family: var(--sans); color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+    .wrap { width: min(1080px, 100% - 48px); margin: 0 auto; }
+    .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); }
+    .btn-dark { display: inline-flex; align-items: center; height: 40px; padding: 0 18px; border: 0; background: var(--ink); color: #fff; font: 600 14px var(--sans); cursor: pointer; white-space: nowrap; }
+    .btn-dark:hover { background: #000; }
+
+    /* barra de demo */
+    .demo-bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: center; gap: 22px; flex-wrap: wrap; min-height: 40px; padding: 5px 16px; background: #141312; color: #fff; font-size: 12.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    .demo-bar b { color: #e0a93a; }
+    .switch { display: inline-flex; gap: 2px; padding: 3px; border-radius: 20px; background: #2b2a28; }
+    .switch a { padding: 6px 14px; border-radius: 16px; color: #cfcac2; text-decoration: none; font-size: 11.5px; letter-spacing: .08em; }
+    .switch a:hover { color: #fff; }
+    .switch a.on { background: #b07a24; color: #fff; }
+
+    /* cabecera del hotel */
+    .nav { position: sticky; top: 40px; z-index: 19; background: rgba(246, 242, 236, .96); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+    .nav .wrap { display: flex; align-items: center; gap: 32px; height: 60px; }
+    .brand { line-height: 1; text-decoration: none; color: inherit; }
+    .brand .name { font-family: var(--serif); font-size: 26px; font-weight: 500; }
+    .brand .sub { display: block; margin-top: 4px; font-size: 9.5px; font-weight: 600; letter-spacing: .26em; text-transform: uppercase; color: var(--gold); }
+    .links { display: flex; gap: 30px; margin: 0 auto; font-size: 14px; }
+    .links a { text-decoration: none; color: #2d2a26; }
+    .links a:hover { color: var(--gold); }
+
+    /* portada */
+    .hero { position: relative; min-height: min(78vh, 760px); display: flex; align-items: flex-end; overflow: hidden; color: #fff; background: #2a2433; }
+    .hero .sky { position: absolute; inset: 0; background:
+        radial-gradient(120% 60% at 18% 18%, rgba(255, 170, 90, .75), transparent 55%),
+        linear-gradient(180deg, #e9965d 0%, #b8697a 30%, #5f4a72 58%, #2b2a3d 100%); }
+    .hero svg.city { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 62%; }
+    .hero .shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 30%, rgba(20,16,24,.55) 100%); }
+    .hero .content { position: relative; padding: 0 0 72px; }
+    .hero h1 { margin: 14px 0 18px; max-width: 900px; font-family: var(--serif); font-weight: 400; font-size: clamp(44px, 7.4vw, 92px); line-height: 1; letter-spacing: -.01em; }
+    .hero p { max-width: 440px; margin: 0; font-size: 17px; line-height: 1.55; color: rgba(255,255,255,.92); }
+    .hero .eyebrow { color: #f1c27a; }
+    .badges { display: flex; flex-wrap: wrap; margin-top: 30px; font-size: 13px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
+    .badges span { padding: 0 24px; border-left: 1px solid rgba(255,255,255,.4); }
+    .badges span:first-child { padding-left: 0; border: 0; }
+
+    /* la estancia */
+    .stay { padding: 96px 0; background: var(--cream); border-bottom: 1px solid var(--line); }
+    .stay .wrap { display: grid; grid-template-columns: 1fr 1.25fr; gap: 72px; align-items: start; }
+    h2 { margin: 12px 0 22px; font-family: var(--serif); font-weight: 400; font-size: clamp(36px, 4.6vw, 52px); line-height: 1.08; }
+    .stay p { margin: 0 0 16px; color: var(--muted); font-size: 16px; line-height: 1.65; }
+    .stats { display: flex; gap: 44px; margin-top: 36px; }
+    .stats strong { display: block; font-family: var(--serif); font-weight: 400; font-size: 44px; color: var(--gold); line-height: 1; }
+    .stats span { display: block; margin-top: 8px; font-size: 11.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+    .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border: 1px solid #cdc3b4; margin-top: 30px; background: var(--paper); }
+    .service { min-height: 290px; display: flex; flex-direction: column; justify-content: space-between; padding: 64px 22px 52px 26px; border-left: 1px solid #cdc3b4; }
+    .service:first-child { border-left: 0; }
+    .service h3 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 23px; }
+    .service p { margin: 0; color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+    .service .ask { margin-top: 10px; font-size: 12px; color: var(--gold); font-weight: 600; }
+
+    /* habitaciones */
+    .rooms { padding: 96px 0; background: var(--paper); }
+    .rooms-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; margin-bottom: 40px; }
+    .rooms-head h2 { margin-bottom: 0; }
+    .room-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 30px; }
+    .room { background: var(--cream); border: 1px solid var(--line); }
+    .room .pic { position: relative; aspect-ratio: 3 / 2; overflow: hidden; }
+    .room .pic svg { width: 100%; height: 100%; display: block; }
+    .room .num { position: absolute; top: 14px; left: 14px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: rgba(40,36,32,.7); color: #fff; font: 500 13px var(--serif); }
+    .room .body { padding: 26px 24px 28px; }
+    .room h3 { margin: 0 0 10px; font-family: var(--serif); font-weight: 400; font-size: 27px; }
+    .room .cta { border: 0; background: none; padding: 0; color: var(--gold); font: 600 12.5px var(--sans); letter-spacing: .16em; text-transform: uppercase; cursor: pointer; }
+    .room .cta:hover { text-decoration: underline; }
+
+    /* concierge */
+    .concierge { padding: 96px 0; background: var(--night); color: #fff; text-align: center; }
+    .concierge .eyebrow { color: #d6a24a; }
+    .concierge h2 { max-width: 460px; margin: 16px auto 22px; font-size: clamp(40px, 5.2vw, 58px); line-height: 1.3; }
+    .concierge p { max-width: 440px; margin: 0 auto; color: rgba(255,255,255,.86); line-height: 1.6; }
+    .online { display: inline-flex; align-items: center; gap: 10px; margin-top: 32px; font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.75); }
+    .online i { width: 9px; height: 9px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 6px rgba(74,222,128,.15); }
+
+    footer { padding: 28px 0 40px; background: var(--cream); font-size: 13px; color: var(--muted); }
+    footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    footer code { font-size: 12px; background: #ebe4d8; padding: 3px 6px; word-break: break-all; }
+
+    @media (max-width: 860px) {
+      .links { display: none; }
+      .nav .wrap { justify-content: space-between; }
+      .stay .wrap { grid-template-columns: 1fr; gap: 24px; }
+      .room-grid { grid-template-columns: 1fr; }
+      .rooms-head { flex-direction: column; align-items: flex-start; }
+      .demo-bar .note { display: none; }
+      .services { grid-template-columns: 1fr; }
+      .service { min-height: 0; padding: 26px 22px; gap: 18px; border-left: 0; border-top: 1px solid #cdc3b4; }
+      .service:first-child { border-top: 0; }
+    }
+    @media (max-width: 560px) {
+      .demo-bar { gap: 10px; letter-spacing: .06em; }
+      .demo-bar > span:first-child { display: none; }
+      .badges span { padding: 0 12px; }
+      .stats { gap: 28px; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1 id="hotel-name">Web de ejemplo de un hotel</h1>
-    <p class="lead">Esta página simula la web de un hotel con el widget de reservas instalado.</p>
-  </header>
-  <main>
-    <p>Habitaciones luminosas, desayuno casero y vistas al río. Pulsa el botón <strong>Reservar</strong> abajo a la derecha para pedir una reserva por chat: el chatbot recoge los datos, te ofrece los extras que el hotel tenga activos y envía la solicitud al panel del hotel, donde un encargado la confirma o la rechaza.</p>
-    <div class="note">
-      Para instalarlo en cualquier web basta una línea:<br>
-      <code id="snippet"></code>
+  <div class="demo-bar">
+    <span>Demo · <b>HostlyAI</b></span>
+    <nav class="switch" id="switch" aria-label="Cambiar de hotel"></nav>
+    <span class="note">El chat responde según el hotel</span>
+  </div>
+
+  <header class="nav">
+    <div class="wrap">
+      <a class="brand" href="#top"><span class="name" data-hotel-name>Hotel</span><span class="sub">Reservas directas</span></a>
+      <nav class="links">
+        <a href="#estancia">La estancia</a>
+        <a href="#habitaciones">Habitaciones</a>
+        <a href="#concierge">Concierge</a>
+      </nav>
+      <button class="btn-dark" type="button" data-open-chat>Reservar</button>
     </div>
-    <p class="hotels">Probar con otro hotel: <a href="?hotel=hotel-mirador">Hotel Mirador</a><a href="?hotel=posada-del-rio">Posada del Río</a></p>
-    <p>Prueba también desde el móvil: el chat ocupa toda la pantalla, se adapta al teclado y se puede minimizar sin perder la conversación.</p>
-  </main>
+  </header>
+
+  <section class="hero" id="top">
+    <div class="sky"></div>
+    <svg class="city" viewBox="0 0 1440 480" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+      <path d="M0 250 C180 200 320 230 480 205 C640 180 760 215 900 195 C1060 172 1220 210 1440 190 V480 H0Z" fill="#6c5476" opacity=".55"/>
+      <path fill="#3d3149" d="M0 300 h40 v-30 h30 v-22 h26 v40 h22 v-58 h12 v-16 h10 v16 h14 v66 h30 v-36 h28 v48 h18 v-70 h34 v-18 h8 v18 h20 v62 h26 v-28 h36 v44 h24 v-50 h40 v30 h22 v-64 h18 v-22 h6 v-30 h6 v30 h6 v22 h18 v82 h30 v-44 h32 v-20 h26 v52 h22 v-36 h44 v58 h20 v-74 h16 v-12 h22 v12 h16 v70 h30 v-30 h28 v42 h24 v-58 h36 v54 h22 v-30 h30 v-24 h20 v60 h26 v-46 h40 v62 h18 v-40 h34 v40 h30 v-66 h24 v-14 h10 v14 h20 v60 h28 v-26 h40 v50 h40 V480 H0Z"/>
+      <g fill="#ffcf8a" opacity=".8">
+        <rect x="108" y="262" width="4" height="5"/><rect x="118" y="276" width="4" height="5"/><rect x="226" y="250" width="4" height="5"/>
+        <rect x="402" y="242" width="4" height="5"/><rect x="414" y="258" width="4" height="5"/><rect x="560" y="266" width="4" height="5"/>
+        <rect x="716" y="252" width="4" height="5"/><rect x="728" y="268" width="4" height="5"/><rect x="884" y="262" width="4" height="5"/>
+        <rect x="1012" y="258" width="4" height="5"/><rect x="1150" y="246" width="4" height="5"/><rect x="1162" y="262" width="4" height="5"/>
+        <rect x="1300" y="252" width="4" height="5"/><rect x="1380" y="270" width="4" height="5"/>
+      </g>
+      <rect y="352" width="1440" height="128" fill="#2a2638"/>
+      <path d="M-20 352 Q 180 300 380 352 Q 580 300 780 352" fill="none" stroke="#1d1a26" stroke-width="7"/>
+      <path d="M180 326 V352 M380 352 V368 M580 326 V352" stroke="#1d1a26" stroke-width="5"/>
+      <path d="M120 392 h80 M260 410 h120 M520 396 h70 M880 404 h140 M1120 388 h90 M1260 420 h110" stroke="#f2b26e" stroke-width="2" opacity=".35"/>
+      <path d="M0 440 H1440 V480 H0Z" fill="#17141c"/>
+    </svg>
+    <div class="shade"></div>
+    <div class="wrap content">
+      <div class="eyebrow" data-hotel-eyebrow>Bienvenido</div>
+      <h1>Su próxima estancia empieza en una conversación</h1>
+      <p>Elija fechas, habitación y extras por chat. El equipo de <strong data-hotel-name>Hotel</strong> revisa su solicitud y le confirma por email.</p>
+      <div class="badges"><span>Reserva directa</span><span>Confirmación del hotel</span><span>Chat 24h</span></div>
+    </div>
+  </section>
+
+  <section class="stay" id="estancia">
+    <div class="wrap">
+      <div>
+        <div class="eyebrow">La estancia</div>
+        <h2>Todo lo que necesita, sin buscarlo</h2>
+        <p>Cuéntele al chat cuándo viene y con cuántas personas. Le ofrecerá, sin insistir, los servicios que el hotel tiene disponibles.</p>
+        <p>Su solicitud llega directamente al equipo de recepción encargado de esas fechas.</p>
+        <div class="stats">
+          <div><strong data-count-rooms>–</strong><span>Habitaciones</span></div>
+          <div><strong data-count-extras>–</strong><span>Extras</span></div>
+          <div><strong>24h</strong><span>Chat</span></div>
+        </div>
+      </div>
+      <div class="services" id="services"></div>
+    </div>
+  </section>
+
+  <section class="rooms" id="habitaciones">
+    <div class="wrap">
+      <div class="rooms-head">
+        <div>
+          <div class="eyebrow">Habitaciones</div>
+          <h2 data-rooms-title>Maneras de quedarse</h2>
+        </div>
+        <button class="btn-dark" type="button" data-open-chat>Consultar disponibilidad</button>
+      </div>
+      <div class="room-grid" id="rooms"></div>
+    </div>
+  </section>
+
+  <section class="concierge" id="concierge">
+    <div class="wrap">
+      <div class="eyebrow">Concierge digital</div>
+      <h2>Reserve por chat, a cualquier hora</h2>
+      <p>Fechas, personas, habitación y extras como parking o desayuno: el asistente prepara su solicitud con la información de <strong data-hotel-name>Hotel</strong>.</p>
+      <div class="online"><i></i>En línea ahora · pulse el botón de abajo a la derecha</div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>Web de ejemplo para probar el widget de reservas.</span>
+      <span>Instalación: <code id="snippet"></code></span>
+    </div>
+  </footer>
+
   <script>
     (function () {
-      var hotel = new URLSearchParams(location.search).get('hotel') || 'hotel-mirador';
-      var s = document.createElement('script');
-      s.src = '/widget.js';
-      s.async = true;
-      s.setAttribute('data-hotel', hotel);
-      document.body.appendChild(s);
-      document.getElementById('snippet').textContent =
-        '<script src="' + location.origin + '/widget.js" data-hotel="' + hotel + '" async><\/script>';
-      fetch('/api/public/hotels/' + encodeURIComponent(hotel))
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (h) { if (h) document.getElementById('hotel-name').textContent = h.name; });
+      var hotel = new URLSearchParams(location.search).get('hotel') || '';
+      var $ = function (s) { return document.querySelector(s); };
+      var setText = function (s, v) { document.querySelectorAll(s).forEach(function (n) { n.textContent = v; }); };
+
+      // Ilustraciones de habitación (sin fotos externas), cada una con su luz
+      var MOODS = [
+        ['#f3d9b5', '#e8b98a', '#c98a5a'],
+        ['#cfe0ee', '#9fbfd8', '#5b7f9e'],
+        ['#f2c99b', '#c88a73', '#6d4f63'],
+        ['#e9c27d', '#8e6a4f', '#3c3040'],
+      ];
+      function roomArt(i) {
+        var m = MOODS[i % MOODS.length];
+        return '<svg viewBox="0 0 600 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
+          '<defs><linearGradient id="g' + i + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + m[0] + '"/><stop offset="1" stop-color="' + m[1] + '"/></linearGradient></defs>' +
+          '<rect width="600" height="400" fill="url(#g' + i + ')"/>' +
+          '<rect x="330" y="40" width="210" height="230" fill="#fff" opacity=".35"/>' +
+          '<path d="M330 155 H540 M435 40 V270" stroke="' + m[2] + '" stroke-width="5" opacity=".5"/>' +
+          '<rect x="0" y="300" width="600" height="100" fill="' + m[2] + '" opacity=".55"/>' +
+          '<rect x="40" y="150" width="300" height="56" rx="8" fill="' + m[2] + '" opacity=".35"/>' +
+          '<rect x="40" y="200" width="300" height="34" rx="6" fill="#fff" opacity=".9"/>' +
+          '<rect x="40" y="226" width="300" height="74" rx="4" fill="' + m[2] + '" opacity=".75"/>' +
+          '<rect x="60" y="182" width="90" height="34" rx="14" fill="#fff"/>' +
+          '<rect x="160" y="182" width="90" height="34" rx="14" fill="#fff" opacity=".92"/>' +
+          '<path d="M440 300 V190" stroke="#3a2f2a" stroke-width="4"/><path d="M412 190 h56 l-10 -34 h-36z" fill="#fff6e4"/>' +
+          '</svg>';
+      }
+
+      function node(tag, cls, txt) {
+        var e = document.createElement(tag);
+        if (cls) e.className = cls;
+        if (txt != null) e.textContent = txt;
+        return e;
+      }
+
+      document.addEventListener('click', function (e) {
+        if (e.target.closest('[data-open-chat]') && window.ReservasChat) window.ReservasChat.open();
+      });
+
+      fetch('/api/public/hotels')
+        .then(function (r) { return r.json(); })
+        .then(function (list) {
+          if (!list.length) return null;
+          if (!list.some(function (h) { return h.id === hotel; })) hotel = list[0].id;
+          list.forEach(function (h) {
+            var a = node('a', h.id === hotel ? 'on' : '', h.name);
+            a.href = '?hotel=' + encodeURIComponent(h.id);
+            if (h.id === hotel) a.setAttribute('aria-current', 'page');
+            $('#switch').appendChild(a);
+          });
+
+          // El chat: el mismo widget que se instala en la web de cada hotel
+          var s = document.createElement('script');
+          s.src = '/widget.js';
+          s.async = true;
+          s.setAttribute('data-hotel', hotel);
+          document.body.appendChild(s);
+          $('#snippet').textContent = '<script src="' + location.origin + '/widget.js" data-hotel="' + hotel + '" async><\/script>';
+
+          return fetch('/api/public/hotels/' + encodeURIComponent(hotel) + '/site').then(function (r) { return r.json(); });
+        })
+        .then(function (site) {
+          if (!site) return;
+          document.title = site.name + ' · Reservas por chat';
+          setText('[data-hotel-name]', site.name);
+          setText('[data-hotel-eyebrow]', 'Bienvenido a ' + site.name);
+          setText('[data-count-rooms]', String(site.room_types.length || '–'));
+          setText('[data-count-extras]', String(site.extras.length));
+          setText('[data-rooms-title]', site.room_types.length === 1 ? 'Una manera de quedarse' : site.room_types.length + ' maneras de quedarse');
+
+          var items = site.extras.length ? site.extras : [{ name: 'Reserva por chat', price: 'Fechas, personas y habitación en un minuto' }];
+          items.slice(0, 4).forEach(function (x) {
+            var card = node('div', 'service');
+            card.appendChild(node('h3', null, x.name));
+            var body = node('div');
+            body.appendChild(node('p', null, [x.price, x.condition_text].filter(Boolean).join(' · ') || 'Consulte en el chat'));
+            if (site.extras.length) body.appendChild(node('div', 'ask', 'Se añade al reservar'));
+            card.appendChild(body);
+            $('#services').appendChild(card);
+          });
+
+          (site.room_types.length ? site.room_types : ['Habitación']).forEach(function (name, i) {
+            var card = node('article', 'room');
+            var pic = node('div', 'pic');
+            pic.innerHTML = roomArt(i);
+            pic.appendChild(node('span', 'num', String(i + 1).padStart(2, '0')));
+            card.appendChild(pic);
+            var body = node('div', 'body');
+            body.appendChild(node('h3', null, name));
+            var btn = node('button', 'cta', 'Pedir esta habitación →');
+            btn.type = 'button';
+            btn.setAttribute('data-open-chat', '');
+            body.appendChild(btn);
+            card.appendChild(body);
+            $('#rooms').appendChild(card);
+          });
+        })
+        .catch(function () {
+          setText('[data-hotel-name]', 'Servidor no disponible');
+        });
     })();
   </script>
 </body>

@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { openDb } from './db.js';
 import { createApp } from './app.js';
 import { createNotifier } from './notifier.js';
@@ -11,7 +11,12 @@ const DB_FILE = process.env.DB_FILE || join(process.cwd(), 'data', 'reservas.db'
 const db = openDb(DB_FILE);
 if (process.env.SEED_DEMO !== 'false') seedIfEmpty(db);
 
-const app = createApp({ db, notifier: createNotifier(), panelToken: process.env.PANEL_TOKEN || undefined });
+const app = createApp({
+  db,
+  notifier: createNotifier(),
+  panelToken: process.env.PANEL_TOKEN || undefined,
+  logosDir: join(dirname(DB_FILE), 'logos'),
+});
 
 createServer(app).listen(PORT, () => {
   console.log(`Servidor listo en http://localhost:${PORT}`);

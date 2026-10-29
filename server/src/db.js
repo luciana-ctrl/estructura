@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS hotels (
   room_types      TEXT NOT NULL DEFAULT '[]', -- JSON: ["Doble", "Suite"]
   assign_by       TEXT NOT NULL DEFAULT 'check_in', -- 'check_in' | 'created'
   welcome_message TEXT,
-  primary_color   TEXT NOT NULL DEFAULT '#1f6f5c',
+  primary_color   TEXT NOT NULL DEFAULT '#2f6bff',
+  logo_url        TEXT,
   created_at      TEXT NOT NULL
 );
 
@@ -45,6 +46,7 @@ CREATE TABLE IF NOT EXISTS conversations (
   id          TEXT PRIMARY KEY,
   hotel_id    TEXT NOT NULL REFERENCES hotels(id) ON DELETE CASCADE,
   device      TEXT,
+  channel     TEXT NOT NULL DEFAULT 'web', -- web (widget en la web del hotel) | panel (chat del personal)
   state       TEXT NOT NULL DEFAULT '{}',
   messages    TEXT NOT NULL DEFAULT '[]',
   request_id  INTEGER,
@@ -95,7 +97,16 @@ export function openDb(file = ':memory:') {
   db.exec('PRAGMA foreign_keys = ON;');
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL;');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+/** Cambios de esquema para bases creadas con versiones anteriores */
+function migrate(db) {
+  const cols = db.prepare('PRAGMA table_info(conversations)').all().map((c) => c.name);
+  if (!cols.includes('channel')) db.exec("ALTER TABLE conversations ADD COLUMN channel TEXT NOT NULL DEFAULT 'web'");
+  const hotelCols = db.prepare('PRAGMA table_info(hotels)').all().map((c) => c.name);
+  if (!hotelCols.includes('logo_url')) db.exec('ALTER TABLE hotels ADD COLUMN logo_url TEXT');
 }
 
 /** Ejecuta fn dentro de una transacción. */

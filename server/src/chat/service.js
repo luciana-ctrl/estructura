@@ -26,10 +26,12 @@ const stamp = (from, reply) => ({ from, ...reply, at: nowIso() });
  * Un turno del chat.
  * Sin conversationId (o con uno que no existe) arranca una conversación nueva.
  */
-export function handleChat(db, { hotelId, conversationId, message, device }, { notifier } = {}) {
+export function handleChat(db, { hotelId, conversationId, message, device, channel }, { notifier } = {}) {
   if (!hotelId) throw new HttpError(400, 'Falta hotelId');
   const ctx = context(db, hotelId);
   const dev = ['mobile', 'desktop'].includes(device) ? device : null;
+  // 'panel' = el personal del hotel carga la reserva por chat (p. ej. un huésped que llama por teléfono)
+  const chan = channel === 'panel' ? 'panel' : 'web';
 
   let conv = conversationId ? db.prepare('SELECT * FROM conversations WHERE id = ? AND hotel_id = ?').get(conversationId, hotelId) : null;
 
@@ -38,10 +40,11 @@ export function handleChat(db, { hotelId, conversationId, message, device }, { n
     const now = nowIso();
     const { state, replies } = engine.start(ctx);
     const messages = replies.map((r) => stamp('bot', r));
-    db.prepare('INSERT INTO conversations (id, hotel_id, device, state, messages, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    db.prepare('INSERT INTO conversations (id, hotel_id, device, channel, state, messages, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
       id,
       hotelId,
       dev,
+      chan,
       JSON.stringify(state),
       JSON.stringify(messages),
       now,
@@ -60,7 +63,13 @@ export function handleChat(db, { hotelId, conversationId, message, device }, { n
     try {
       const request = createRequest(
         db,
-        { ...action.payload, hotel_id: hotelId, source: 'chat', device: conv.device ?? dev, conversation_id: conv.id },
+        {
+          ...action.payload,
+          hotel_id: hotelId,
+          source: conv.channel === 'panel' ? 'manual' : 'chat',
+          device: conv.channel === 'panel' ? null : conv.device ?? dev,
+          conversation_id: conv.id,
+        },
         { notifier }
       );
       requestId = request.id;

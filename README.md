@@ -10,7 +10,7 @@ No necesita un PMS: el panel hace de PMS ligero para cada hotel.
 | --- | --- | --- |
 | Servidor | `server/` | API, base de datos SQLite, chatbot guiado, asignación de encargados, avisos |
 | Widget | `widget/widget.js` | Chat embebible con una línea; minimizable; pantalla completa en móvil |
-| Panel | `web/` | React: Solicitudes, Knowledge y Analítica |
+| Panel | `web/` | React: Solicitudes, Knowledge y Analítica, con un chat abajo a la izquierda para que el personal cargue reservas conversando (quedan como *Manual*) |
 | Demo | `widget/demo.html` | Web de hotel de ejemplo con el widget instalado |
 
 ## Arrancar
@@ -38,7 +38,9 @@ Desarrollo: `npm run dev` (servidor con recarga) y `npm run dev:web` (panel con 
 
 Es el mismo archivo para todos los hoteles; solo cambia `data-hotel`. El panel (Knowledge → Instalar el widget) muestra la línea lista para copiar.
 
-Opciones: `data-position="left"`, `data-label="Reservar"`, `data-open="true"`, `data-api="https://otra-url"`.
+El logo de cada hotel se sube en **Knowledge → Ajustes del chatbot → Logo** (o se pega su dirección); si no hay logo, el chat muestra la inicial del hotel. Los logos subidos se guardan en `data/logos`.
+
+Opciones: `data-logo="https://…/logo.png"` (tiene prioridad sobre el de Knowledge), `data-position="left"`, `data-label="Reservar"`, `data-open="true"`, `data-powered-by="HostlyAI"`, `data-api="https://otra-url"`. El color de los botones y burbujas se elige por hotel en Knowledge → Color del widget.
 Desde JavaScript: `ReservasChat.open()`, `ReservasChat.minimize()`, `ReservasChat.toggle()`, `ReservasChat.reset()`.
 
 En móvil el chat ocupa toda la pantalla, se ajusta cuando aparece el teclado, usa el calendario nativo para las fechas y se puede minimizar sin perder la conversación (se guarda en el navegador y en el servidor).

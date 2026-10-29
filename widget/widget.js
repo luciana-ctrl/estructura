@@ -9,8 +9,10 @@
  *   data-position="left"               lanzador a la izquierda (por defecto, derecha)
  *   data-label="Reservar"              texto del botón
  *   data-open="true"                   abrir el chat al cargar
+ *   data-channel="panel"               uso interno: chat del personal dentro del panel (cuenta como solicitud manual)
  *
- * API JS: window.ReservasChat.open() · .minimize() · .toggle() · .reset()
+ * API JS: window.ReservasChat.open() · .minimize() · .toggle() · .reset() · .destroy()
+ * Evento: window 'reservas:request-created' con detail { requestId, hotel } al enviarse una solicitud
  */
 (function () {
   'use strict';
@@ -19,12 +21,16 @@
   if (!script) return;
   var HOTEL = script.getAttribute('data-hotel');
   if (!HOTEL) return console.warn('[reservas] Falta data-hotel en el <script> del widget');
-  if (window.ReservasChat && window.ReservasChat.hotel === HOTEL) return; // ya cargado
+  var CHANNEL = script.getAttribute('data-channel') === 'panel' ? 'panel' : 'web';
+  if (window.ReservasChat) {
+    if (window.ReservasChat.hotel === HOTEL && window.ReservasChat.channel === CHANNEL) return; // ya cargado
+    if (window.ReservasChat.destroy) window.ReservasChat.destroy(); // otro hotel: se reemplaza
+  }
 
   var API = (script.getAttribute('data-api') || new URL(script.src, location.href).origin).replace(/\/$/, '');
   var POSITION = script.getAttribute('data-position') === 'left' ? 'left' : 'right';
   var LABEL = script.getAttribute('data-label') || 'Reservar';
-  var STORE_KEY = 'reservas-chat:' + HOTEL;
+  var STORE_KEY = 'reservas-chat:' + (CHANNEL === 'panel' ? 'panel:' : '') + HOTEL;
   var MOBILE_MQ = window.matchMedia('(max-width: 640px)');
 
   // ------------------------------------------------------------ estado
@@ -70,64 +76,86 @@
 
   var CSS = [
     ':host{all:initial}',
-    '*{box-sizing:border-box;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}',
-    '.launcher{position:fixed;bottom:20px;' + POSITION + ':20px;display:flex;align-items:center;gap:8px;height:52px;padding:0 20px 0 16px;border:0;border-radius:26px;background:var(--rc-primary);color:#fff;font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.18);transition:transform .15s}',
-    '.launcher:hover{transform:translateY(-1px)}',
-    '.launcher:focus-visible,.icon-btn:focus-visible,.chip:focus-visible,.send:focus-visible{outline:3px solid #ffbf47;outline-offset:2px}',
-    '.launcher svg{width:22px;height:22px}',
-    '.launcher .dot{width:9px;height:9px;border-radius:50%;background:#ffbf47;margin-left:2px}',
-    '.panel{position:fixed;bottom:20px;' + POSITION + ':20px;width:380px;height:min(620px,calc(100vh - 40px));display:flex;flex-direction:column;background:#fff;color:#1d1d1f;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.22)}',
+    '*{box-sizing:border-box;font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}',
+    // botón redondo
+    '.launcher{position:fixed;bottom:20px;' + POSITION + ':20px;display:grid;place-items:center;width:58px;height:58px;border:0;border-radius:50%;background:var(--rc-header);color:#fff;cursor:pointer;box-shadow:0 8px 24px rgba(10,18,35,.32);transition:transform .15s}',
+    '.launcher:hover{transform:scale(1.05)}',
+    '.launcher svg{width:24px;height:24px}',
+    '.launcher .i-close{display:none}',
+    '.launcher.is-open .i-chat{display:none}.launcher.is-open .i-close{display:block}',
+    '.launcher .dot{position:absolute;top:4px;right:4px;width:12px;height:12px;border-radius:50%;background:#22c55e;border:2px solid var(--rc-header)}',
+    '.launcher:focus-visible,.icon-btn:focus-visible,.chip:focus-visible,.send:focus-visible{outline:3px solid #93b4ff;outline-offset:2px}',
+    // ventana
+    '.panel{position:fixed;bottom:92px;' + POSITION + ':20px;width:380px;height:min(600px,calc(100vh - 112px));display:flex;flex-direction:column;background:#fff;color:#18202f;border-radius:18px;overflow:hidden;box-shadow:0 18px 50px rgba(10,18,35,.28);border:1px solid rgba(10,18,35,.08)}',
     '.panel[hidden],.launcher[hidden]{display:none}',
-    '.head{display:flex;align-items:center;gap:10px;padding:14px 12px 14px 16px;background:var(--rc-primary);color:#fff}',
+    '.head{display:flex;align-items:center;gap:12px;padding:14px 14px 14px 16px;background:#fff;color:#0f1729;border-bottom:1px solid #eceef3}',
+    '.logo{flex:none;display:grid;place-items:center;width:38px;height:38px;border-radius:10px;background:var(--rc-header);color:#fff;font-weight:800;font-size:17px;overflow:hidden}',
+    '.logo img{width:100%;height:100%;object-fit:contain}',
+    '.logo:has(img),.av:has(img){background:#fff;border:1px solid #e6e8ee}',
     '.head .t{flex:1;min-width:0}',
-    '.head .n{font-size:15px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.head .s{font-size:12px;opacity:.85}',
-    '.icon-btn{display:grid;place-items:center;width:40px;height:40px;border:0;border-radius:10px;background:rgba(255,255,255,.14);color:#fff;cursor:pointer}',
-    '.icon-btn:hover{background:rgba(255,255,255,.24)}',
-    '.icon-btn svg{width:20px;height:20px}',
-    '.log{flex:1;overflow-y:auto;padding:16px 14px 8px;background:#f6f7f8;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}',
-    '.msg{max-width:85%;margin:0 0 8px;padding:9px 12px;border-radius:14px;font-size:14.5px;line-height:1.4;white-space:pre-line;word-wrap:break-word}',
-    '.bot{background:#fff;border:1px solid #e3e5e8;border-bottom-left-radius:4px}',
-    '.guest{margin-left:auto;background:var(--rc-primary);color:#fff;border-bottom-right-radius:4px}',
-    '.err{background:#fff4f2;border:1px solid #f3c2b8;color:#8a2a17}',
-    '.typing{display:inline-flex;gap:4px;padding:12px 14px}',
-    '.typing i{width:6px;height:6px;border-radius:50%;background:#9aa0a6;animation:b 1s infinite ease-in-out}',
+    '.head .n{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.head .s{display:flex;align-items:center;gap:6px;margin-top:2px;font-size:12px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.head .s::before{content:"";flex:none;width:7px;height:7px;border-radius:50%;background:#22c55e}',
+    '.icon-btn{display:grid;place-items:center;width:34px;height:34px;flex:none;border:1px solid #e3e6ec;border-radius:9px;background:#fff;color:#4b5563;cursor:pointer}',
+    '.icon-btn:hover{background:#f3f4f7;color:#0f1729}',
+    '.icon-btn svg{width:17px;height:17px}',
+    // mensajes
+    '.log{flex:1;overflow-y:auto;padding:18px 16px 8px;background:#fff;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}',
+    '.row{display:flex;align-items:flex-start;gap:10px;margin:0 0 10px}',
+    '.av{flex:none;display:grid;place-items:center;width:26px;height:26px;margin-top:4px;border-radius:8px;background:var(--rc-header);color:#fff;font-size:12px;font-weight:800;overflow:hidden}',
+    '.av img{width:100%;height:100%;object-fit:contain}',
+    '.msg{max-width:82%;padding:11px 14px;border-radius:14px;font-size:14px;line-height:1.5;white-space:pre-line;word-wrap:break-word}',
+    '.bot{background:#fff;border:1px solid #e6e8ee;box-shadow:0 1px 3px rgba(10,18,35,.06);border-top-left-radius:4px}',
+    '.guest{width:fit-content;margin:0 0 10px auto;background:var(--rc-accent);color:#fff;border-bottom-right-radius:4px}',
+    '.err{background:#fff4f2;border-color:#f3c2b8;color:#8a2a17}',
+    '.typing{display:inline-flex;gap:4px;padding:14px}',
+    '.typing i{width:6px;height:6px;border-radius:50%;background:#a3aab8;animation:b 1s infinite ease-in-out}',
     '.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}',
     '@keyframes b{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}',
-    '.chips{display:flex;flex-wrap:wrap;gap:8px;padding:4px 14px 10px;background:#f6f7f8}',
+    // respuestas rápidas
+    '.chips{display:flex;flex-wrap:wrap;gap:8px;padding:2px 16px 12px 52px;background:#fff}',
     '.chips:empty{display:none}',
-    '.chip{min-height:38px;padding:8px 14px;border:1.5px solid var(--rc-primary);border-radius:19px;background:#fff;color:var(--rc-primary);font-size:14px;font-weight:600;cursor:pointer}',
-    '.chip:hover{background:var(--rc-primary);color:#fff}',
-    '.bar{display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));border-top:1px solid #e3e5e8;background:#fff}',
-    '.bar input{flex:1;min-width:0;height:44px;padding:0 14px;border:1px solid #cfd3d8;border-radius:22px;font-size:16px;color:#1d1d1f;background:#fff}',
-    '.bar input:focus{outline:none;border-color:var(--rc-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--rc-primary) 20%,transparent)}',
-    '.send{display:grid;place-items:center;width:44px;height:44px;flex:none;border:0;border-radius:50%;background:var(--rc-primary);color:#fff;cursor:pointer}',
-    '.send:disabled{opacity:.45;cursor:default}',
-    '.send svg{width:20px;height:20px}',
-    '.foot{padding:0 12px 8px;background:#fff;font-size:11px;color:#80868b;text-align:center}',
-    '.foot button{border:0;background:none;color:inherit;text-decoration:underline;cursor:pointer;font-size:11px;padding:4px}',
+    '.chip{min-height:36px;padding:7px 14px;border:1px solid color-mix(in srgb,var(--rc-accent) 45%,#fff);border-radius:18px;background:color-mix(in srgb,var(--rc-accent) 7%,#fff);color:var(--rc-accent);font-size:13.5px;font-weight:600;cursor:pointer}',
+    '.chip:hover{background:var(--rc-accent);border-color:var(--rc-accent);color:#fff}',
+    // escribir
+    '.bar{display:flex;align-items:center;gap:10px;padding:12px 14px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #eceef3;background:#fff}',
+    '.bar input{flex:1;min-width:0;height:44px;padding:0 14px;border:1px solid #d9dde5;border-radius:12px;font-size:16px;color:#18202f;background:#fff}',
+    '.bar input::placeholder{color:#9aa1ae}',
+    '.bar input:focus{outline:none;border-color:var(--rc-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--rc-accent) 18%,transparent)}',
+    '.send{display:grid;place-items:center;width:42px;height:42px;flex:none;border:0;border-radius:11px;background:var(--rc-accent);color:#fff;cursor:pointer;box-shadow:0 4px 12px color-mix(in srgb,var(--rc-accent) 35%,transparent)}',
+    '.send:disabled{opacity:.45;cursor:default;box-shadow:none}',
+    '.send svg{width:18px;height:18px}',
+    '.foot{padding:4px 12px 10px;background:#fff;font-size:11px;color:#8a91a0;text-align:center}',
+    '.foot a{color:var(--rc-accent);font-weight:700;text-decoration:none}',
+    // móvil: pantalla completa
     '@media (max-width:640px){',
-    '  .panel{inset:0;width:100%;height:var(--rc-vh,100dvh);border-radius:0;bottom:auto;top:0}',
+    '  .panel{inset:0;width:100%;height:var(--rc-vh,100dvh);border-radius:0;border:0;bottom:auto;top:0}',
     '  .launcher{bottom:16px;' + POSITION + ':16px}',
-    '  .head{padding-top:calc(12px + env(safe-area-inset-top))}',
+    '  .launcher.is-open{display:none}',
+    '  .head{padding-top:calc(14px + env(safe-area-inset-top))}',
     '}',
     '@media (prefers-reduced-motion:reduce){.typing i{animation:none}.launcher{transition:none}}',
   ].join('\n');
 
-  var ICON_CHAT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
-  var ICON_MIN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
-  var ICON_SEND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  var ICON_CHAT = '<svg class="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
+  var ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  var ICON_NEW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+  var ICON_SEND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4 20-7z"/></svg>';
+  var LOGO = script.getAttribute('data-logo');
+  var POWERED = script.getAttribute('data-powered-by') || 'HostlyAI';
+  var POWERED_URL = script.getAttribute('data-powered-url') || 'https://thehostlyai.com';
 
   root.innerHTML =
     '<style>' + CSS + '</style>' +
-    '<button class="launcher" type="button" aria-label="Abrir el chat de reservas">' + ICON_CHAT + '<span class="lbl"></span><span class="dot" hidden></span></button>' +
-    '<section class="panel" role="dialog" aria-label="Chat de reservas" hidden>' +
-    '  <header class="head"><div class="t"><div class="n">Reservas</div><div class="s">Solicitud de reserva · respuesta del hotel por email</div></div>' +
-    '    <button class="icon-btn min" type="button" aria-label="Minimizar el chat" title="Minimizar">' + ICON_MIN + '</button></header>' +
+    '<button class="launcher" type="button" aria-label="Abrir el chat">' + ICON_CHAT + ICON_X.replace('<svg', '<svg class="i-close"') + '<span class="dot" hidden></span></button>' +
+    '<section class="panel" role="dialog" aria-label="Chat" hidden>' +
+    '  <header class="head"><div class="logo" aria-hidden="true"></div><div class="t"><div class="n">Reservas</div><div class="s">Disponible las 24 horas</div></div>' +
+    '    <button class="icon-btn restart" type="button" aria-label="Empezar una solicitud nueva" title="Nueva solicitud">' + ICON_NEW + '</button>' +
+    '    <button class="icon-btn min" type="button" aria-label="Minimizar el chat" title="Minimizar">' + ICON_X + '</button></header>' +
     '  <div class="log" aria-live="polite"></div>' +
     '  <div class="chips"></div>' +
     '  <form class="bar"><input type="text" autocomplete="off" aria-label="Escribe tu respuesta" placeholder="Escribe tu respuesta…"><button class="send" type="submit" aria-label="Enviar">' + ICON_SEND + '</button></form>' +
-    '  <div class="foot"><button type="button" class="restart">Empezar una solicitud nueva</button></div>' +
+    '  <div class="foot">Con tecnología de <a target="_blank" rel="noopener"></a></div>' +
     '</section>';
 
   var $ = function (sel) { return root.querySelector(sel); };
@@ -139,8 +167,43 @@
   var input = $('.bar input');
   var sendBtn = $('.send');
   var dot = $('.dot');
-  $('.lbl').textContent = LABEL;
-  host.style.setProperty('--rc-primary', '#1f6f5c');
+  var poweredLink = $('.foot a');
+  poweredLink.textContent = POWERED;
+  poweredLink.href = POWERED_URL;
+  launcher.title = LABEL;
+  if (CHANNEL === 'panel') $('.s').textContent = 'Reserva cargada por el personal';
+  host.style.setProperty('--rc-header', '#0f1729');
+  host.style.setProperty('--rc-accent', '#2f6bff');
+
+  /** Logo: el de data-logo, si no el configurado en Knowledge, si no la inicial del hotel */
+  function logoUrl() {
+    if (LOGO) return LOGO;
+    var url = state.hotel && state.hotel.logo_url;
+    if (!url) return null;
+    return url.charAt(0) === '/' ? API + url : url;
+  }
+  function initial() {
+    var name = (state.hotel && state.hotel.name) || 'R';
+    return document.createTextNode(name.trim().charAt(0).toUpperCase());
+  }
+  function logoNode() {
+    var url = logoUrl();
+    if (!url) return initial();
+    var img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    img.addEventListener('error', function () { img.replaceWith(initial()); });
+    return img;
+  }
+  function paintLogo() {
+    var el = $('.logo');
+    el.textContent = '';
+    el.appendChild(logoNode());
+    log.querySelectorAll('.av').forEach(function (av) {
+      av.textContent = '';
+      av.appendChild(logoNode());
+    });
+  }
 
   // ------------------------------------------------------------ render
 
@@ -149,11 +212,23 @@
     return m ? m[3] + '/' + m[2] + '/' + m[1] : iso;
   }
 
+  function botRow(child) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    var av = document.createElement('div');
+    av.className = 'av';
+    av.setAttribute('aria-hidden', 'true');
+    av.appendChild(logoNode());
+    row.appendChild(av);
+    row.appendChild(child);
+    return row;
+  }
+
   function bubble(m) {
     var el = document.createElement('div');
     el.className = 'msg ' + (m.from === 'guest' ? 'guest' : m.error ? 'bot err' : 'bot');
     el.textContent = m.from === 'guest' ? formatIso(m.text) : m.text;
-    return el;
+    return m.from === 'guest' ? el : botRow(el);
   }
 
   function renderAll() {
@@ -203,10 +278,11 @@
   function setBusy(busy) {
     state.busy = busy;
     if (busy && !typingEl) {
-      typingEl = document.createElement('div');
-      typingEl.className = 'msg bot typing';
-      typingEl.setAttribute('aria-label', 'Escribiendo');
-      typingEl.innerHTML = '<i></i><i></i><i></i>';
+      var dots = document.createElement('div');
+      dots.className = 'msg bot typing';
+      dots.setAttribute('aria-label', 'Escribiendo');
+      dots.innerHTML = '<i></i><i></i><i></i>';
+      typingEl = botRow(dots);
       log.appendChild(typingEl);
       scrollDown();
     } else if (!busy && typingEl) {
@@ -250,7 +326,7 @@
     state.lastError = null;
     log.textContent = '';
     setBusy(true);
-    return api('/api/chat', { method: 'POST', body: JSON.stringify({ hotelId: HOTEL, device: device() }) })
+    return api('/api/chat', { method: 'POST', body: JSON.stringify({ hotelId: HOTEL, device: device(), channel: CHANNEL }) })
       .then(function (res) {
         state.conversationId = res.conversationId;
         setBusy(false);
@@ -283,7 +359,7 @@
     state.lastError = null;
     input.value = '';
     setBusy(true);
-    api('/api/chat', { method: 'POST', body: JSON.stringify({ hotelId: HOTEL, conversationId: state.conversationId, message: text, device: device() }) })
+    api('/api/chat', { method: 'POST', body: JSON.stringify({ hotelId: HOTEL, conversationId: state.conversationId, message: text, device: device(), channel: CHANNEL }) })
       .then(function (res) {
         setBusy(false);
         if (res.conversationId !== state.conversationId) {
@@ -294,6 +370,11 @@
         push(res.replies);
         renderInput();
         scrollDown();
+        if (res.requestId) {
+          try {
+            window.dispatchEvent(new CustomEvent('reservas:request-created', { detail: { requestId: res.requestId, hotel: HOTEL } }));
+          } catch (e) {}
+        }
         if (device() === 'desktop') input.focus();
       })
       .catch(function () {
@@ -327,7 +408,8 @@
   function open() {
     if (state.open) return;
     state.open = true;
-    launcher.hidden = true;
+    launcher.classList.add('is-open');
+    launcher.setAttribute('aria-label', 'Cerrar el chat');
     panel.hidden = false;
     dot.hidden = true;
     if (MOBILE_MQ.matches) lockScroll(true);
@@ -342,7 +424,8 @@
     if (!state.open) return;
     state.open = false;
     panel.hidden = true;
-    launcher.hidden = false;
+    launcher.classList.remove('is-open');
+    launcher.setAttribute('aria-label', 'Abrir el chat');
     lockScroll(false);
     persist();
     launcher.focus();
@@ -353,9 +436,9 @@
     startConversation();
   }
 
-  launcher.addEventListener('click', open);
+  launcher.addEventListener('click', function () { state.open ? minimize() : open(); });
   $('.min').addEventListener('click', minimize);
-  $('.restart').addEventListener('click', function () { send('Nueva solicitud'); });
+  $('.restart').addEventListener('click', reset);
   panel.addEventListener('keydown', function (e) { if (e.key === 'Escape') minimize(); });
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -364,11 +447,23 @@
   input.addEventListener('change', function () {
     if (input.type === 'date' && input.value) send(input.value); // el calendario envía al elegir
   });
+  function onMqChange() { lockScroll(state.open && MOBILE_MQ.matches); }
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', fitViewport);
     window.visualViewport.addEventListener('scroll', fitViewport);
   }
-  MOBILE_MQ.addEventListener && MOBILE_MQ.addEventListener('change', function () { lockScroll(state.open && MOBILE_MQ.matches); });
+  MOBILE_MQ.addEventListener && MOBILE_MQ.addEventListener('change', onMqChange);
+
+  function destroy() {
+    if (state.open) lockScroll(false);
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', fitViewport);
+      window.visualViewport.removeEventListener('scroll', fitViewport);
+    }
+    MOBILE_MQ.removeEventListener && MOBILE_MQ.removeEventListener('change', onMqChange);
+    host.remove();
+    if (window.ReservasChat && window.ReservasChat.host === host) delete window.ReservasChat;
+  }
 
   // ------------------------------------------------------------ arranque
 
@@ -377,8 +472,9 @@
     api('/api/public/hotels/' + encodeURIComponent(HOTEL))
       .then(function (h) {
         state.hotel = h;
-        host.style.setProperty('--rc-primary', h.primary_color || '#1f6f5c');
+        host.style.setProperty('--rc-accent', h.primary_color || '#2f6bff');
         $('.n').textContent = h.name;
+        paintLogo();
         panel.setAttribute('aria-label', 'Chat de reservas de ' + h.name);
       })
       .catch(function (e) {
@@ -406,7 +502,16 @@
     if (startOpen) open();
   }
 
-  window.ReservasChat = { hotel: HOTEL, open: open, minimize: minimize, toggle: function () { state.open ? minimize() : open(); }, reset: reset };
+  window.ReservasChat = {
+    hotel: HOTEL,
+    channel: CHANNEL,
+    host: host,
+    open: open,
+    minimize: minimize,
+    toggle: function () { state.open ? minimize() : open(); },
+    reset: reset,
+    destroy: destroy,
+  };
 
   if (document.body) mount();
   else document.addEventListener('DOMContentLoaded', mount);

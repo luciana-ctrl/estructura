@@ -20,7 +20,7 @@ export function seedIfEmpty(db, { withRequests = true } = {}) {
     name: 'Posada del Río',
     room_types: ['Cabaña', 'Habitación doble'],
     assign_by: 'created',
-    primary_color: '#8a4b2a',
+    primary_color: '#b4532a',
   });
 
   createExtra(db, mirador.id, { key: 'parking', name: 'Parking', price: '10 € por noche', offer_text: '¿Vienes en coche? Te podemos reservar un puesto de parking por 10 € la noche.', condition_text: 'Plazas limitadas' });
