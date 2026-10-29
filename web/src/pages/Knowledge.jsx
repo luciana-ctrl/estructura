@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, errorText } from '../api.js';
 import { Empty, Field, Modal, Spinner, useData, useToast } from '../ui.jsx';
 import { WEEKDAYS, shortDate } from '../format.js';
@@ -22,7 +22,7 @@ export default function Knowledge({ hotel, hotels, onHotelsChange, onSelectHotel
           <div className="cards">
             {hotels.map((h) => (
               <button key={h.id} className="card card-link" onClick={() => onSelectHotel(h.id)}>
-                <span className="swatch" style={{ background: h.primary_color }} />
+                {h.logo_url ? <img className="card-logo" src={h.logo_url} alt="" /> : <span className="swatch" style={{ background: h.primary_color }} />}
                 <strong>{h.name}</strong>
                 <span className="muted small mono">{h.id}</span>
               </button>
@@ -411,6 +411,7 @@ function SettingsCard({ hotel, onSaved }) {
         <Field label="Tipos de habitación" hint="Separados por comas. Si lo dejas vacío, el chatbot no pregunta.">
           <input className="input" value={f.room_types} onChange={set('room_types')} />
         </Field>
+        <LogoField hotel={hotel} onSaved={onSaved} />
         <Field label="Mensaje de bienvenida">
           <textarea className="input" rows={2} value={f.welcome_message} onChange={set('welcome_message')} placeholder={`¡Hola! Soy el asistente de reservas de ${hotel.name}.`} />
         </Field>
@@ -433,6 +434,91 @@ function SettingsCard({ hotel, onSaved }) {
         </button>
       </div>
     </form>
+  );
+}
+
+/** Logo del hotel: subir una imagen o pegar una dirección. Se guarda al momento. */
+function LogoField({ hotel, onSaved }) {
+  const toast = useToast();
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef(null);
+  const src = hotel.logo_url ? hotel.logo_url : null;
+
+  async function run(fn, ok) {
+    setBusy(true);
+    try {
+      await fn();
+      toast(ok);
+      onSaved();
+    } catch (err) {
+      toast(errorText(err), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function upload(file) {
+    if (!file) return;
+    if (file.size > 1024 * 1024) return toast('El logo no puede pesar más de 1 MB', 'error');
+    const reader = new FileReader();
+    reader.onload = () => run(() => api(`/hotels/${hotel.id}/logo`, { method: 'POST', body: { data: reader.result } }), 'Logo actualizado');
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="field">
+      <span className="field-label">Logo</span>
+      <div className="logo-field">
+        <div className="logo-preview" aria-hidden="true">
+          {src ? <img src={src} alt="" /> : <span>{hotel.name.trim().charAt(0).toUpperCase()}</span>}
+        </div>
+        <div className="stack-sm">
+          <div className="row">
+            <button type="button" className="btn btn-sm" disabled={busy} onClick={() => fileRef.current?.click()}>
+              {src ? 'Cambiar imagen' : 'Subir imagen'}
+            </button>
+            {src && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={busy}
+                onClick={() => run(() => api(`/hotels/${hotel.id}/logo`, { method: 'DELETE' }), 'Logo quitado')}
+              >
+                Quitar
+              </button>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(e) => {
+                upload(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </div>
+          <div className="row">
+            <input className="input input-sm grow" type="url" placeholder="o pega la dirección: https://…/logo.png" value={url} onChange={(e) => setUrl(e.target.value)} />
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={busy || !url.trim()}
+              onClick={() =>
+                run(async () => {
+                  await api(`/hotels/${hotel.id}`, { method: 'PUT', body: { logo_url: url.trim() } });
+                  setUrl('');
+                }, 'Logo actualizado')
+              }
+            >
+              Usar
+            </button>
+          </div>
+          <span className="field-hint">PNG, JPG o WebP de hasta 1 MB, mejor cuadrado. Si no hay logo, el chat muestra la inicial del hotel.</span>
+        </div>
+      </div>
+    </div>
   );
 }
 

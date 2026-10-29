@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, getToken, setToken } from './api.js';
-import { Modal, Spinner, ToastProvider, useData } from './ui.jsx';
+import { Modal, Spinner, ToastProvider, useData, useToast } from './ui.jsx';
 import Requests from './pages/Requests.jsx';
 import Knowledge from './pages/Knowledge.jsx';
 import Analytics from './pages/Analytics.jsx';
@@ -22,6 +22,39 @@ function usePage() {
     return () => window.removeEventListener('hashchange', h);
   }, []);
   return page;
+}
+
+/**
+ * Chat de reservas abajo a la izquierda del panel: el personal carga una reserva conversando
+ * (p. ej. un huésped que llama). Usa el mismo widget que la web del hotel, en modo "panel":
+ * la solicitud queda como Manual y no cuenta en la analítica del chat web.
+ */
+function ChatDock({ hotelId, onCreated }) {
+  const toast = useToast();
+  useEffect(() => {
+    if (!hotelId) return undefined;
+    const s = document.createElement('script');
+    s.src = '/widget.js';
+    s.async = true;
+    s.dataset.hotel = hotelId;
+    s.dataset.channel = 'panel';
+    s.dataset.position = 'left';
+    s.dataset.label = 'Reserva por chat';
+    document.body.appendChild(s);
+    return () => {
+      window.ReservasChat?.destroy?.();
+      s.remove();
+    };
+  }, [hotelId]);
+  useEffect(() => {
+    const h = (e) => {
+      toast(`Solicitud #${e.detail.requestId} creada desde el chat`);
+      onCreated();
+    };
+    window.addEventListener('reservas:request-created', h);
+    return () => window.removeEventListener('reservas:request-created', h);
+  }, [onCreated, toast]);
+  return null;
 }
 
 function Login({ onDone }) {
@@ -50,6 +83,7 @@ export default function App() {
   const page = usePage();
   const [needsLogin, setNeedsLogin] = useState(false);
   const [authTick, setAuthTick] = useState(0);
+  const [dataTick, setDataTick] = useState(0);
   const [hotelId, setHotelId] = useState(() => {
     try {
       return localStorage.getItem(HOTEL_KEY) || '';
@@ -132,10 +166,19 @@ export default function App() {
           ) : page === 'analitica' ? (
             <Analytics hotelId={hotelId} hotels={hotels.data ?? []} reasons={meta.data?.rejectionReasons ?? []} />
           ) : (
-            <Requests hotelId={hotelId} hotels={hotels.data ?? []} reasons={meta.data?.rejectionReasons ?? []} onChange={() => meta.reload(true)} />
+            <Requests key={dataTick} hotelId={hotelId} hotels={hotels.data ?? []} reasons={meta.data?.rejectionReasons ?? []} onChange={() => meta.reload(true)} />
           )}
         </main>
       </div>
+      {!needsLogin && hotels.data?.length > 0 && (
+        <ChatDock
+          hotelId={hotelId || hotels.data[0].id}
+          onCreated={() => {
+            meta.reload(true);
+            setDataTick((t) => t + 1);
+          }}
+        />
+      )}
       {needsLogin && (
         <Login
           onDone={() => {
