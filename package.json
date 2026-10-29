@@ -1,0 +1,24 @@
+{
+  "name": "reservas-chatbot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Solicitudes de reserva por chatbot con confirmación manual del hotel, extras configurables y analítica",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning server/src/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch-path=server/src server/src/index.js",
+    "build": "node web/build.mjs",
+    "dev:web": "node web/build.mjs --watch",
+    "test": "node --disable-warning=ExperimentalWarning --test server/test/*.test.js"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}

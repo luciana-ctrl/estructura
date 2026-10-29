@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Demo del widget de reservas</title>
+  <style>
+    body { margin: 0; font-family: Georgia, 'Times New Roman', serif; color: #2b2b2b; background: #faf8f4; }
+    header { padding: 72px 24px 56px; text-align: center; background: linear-gradient(160deg, #e9e2d4, #d8cdb7); }
+    h1 { margin: 0 0 8px; font-size: clamp(28px, 6vw, 46px); font-weight: 500; }
+    p.lead { margin: 0; font-size: 18px; color: #5a5245; }
+    main { max-width: 760px; margin: 0 auto; padding: 32px 24px 160px; line-height: 1.65; font-size: 17px; }
+    .note { margin: 28px 0; padding: 14px 16px; border-left: 3px solid #b39c74; background: #fff; font-family: system-ui, sans-serif; font-size: 14px; }
+    code { font-size: 13px; background: #f1ede5; padding: 2px 5px; border-radius: 4px; word-break: break-all; }
+    .hotels a { margin-right: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1 id="hotel-name">Web de ejemplo de un hotel</h1>
+    <p class="lead">Esta página simula la web de un hotel con el widget de reservas instalado.</p>
+  </header>
+  <main>
+    <p>Habitaciones luminosas, desayuno casero y vistas al río. Pulsa el botón <strong>Reservar</strong> abajo a la derecha para pedir una reserva por chat: el chatbot recoge los datos, te ofrece los extras que el hotel tenga activos y envía la solicitud al panel del hotel, donde un encargado la confirma o la rechaza.</p>
+    <div class="note">
+      Para instalarlo en cualquier web basta una línea:<br>
+      <code id="snippet"></code>
+    </div>
+    <p class="hotels">Probar con otro hotel: <a href="?hotel=hotel-mirador">Hotel Mirador</a><a href="?hotel=posada-del-rio">Posada del Río</a></p>
+    <p>Prueba también desde el móvil: el chat ocupa toda la pantalla, se adapta al teclado y se puede minimizar sin perder la conversación.</p>
+  </main>
+  <script>
+    (function () {
+      var hotel = new URLSearchParams(location.search).get('hotel') || 'hotel-mirador';
+      var s = document.createElement('script');
+      s.src = '/widget.js';
+      s.async = true;
+      s.setAttribute('data-hotel', hotel);
+      document.body.appendChild(s);
+      document.getElementById('snippet').textContent =
+        '<script src="' + location.origin + '/widget.js" data-hotel="' + hotel + '" async><\/script>';
+      fetch('/api/public/hotels/' + encodeURIComponent(hotel))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (h) { if (h) document.getElementById('hotel-name').textContent = h.name; });
+    })();
+  </script>
+</body>
+</html>
